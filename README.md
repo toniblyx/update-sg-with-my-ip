@@ -12,7 +12,7 @@ For EC2-Classic would be with --group-name instead, something like:
 aws ec2 authorize-security-group-ingress --group-name $1 --protocol tcp --port 22 --cidr $MY_PUBLIC_IP/32
 ```
 
-To make the change automatically you may add it to your crontab, in linux or mac somethign like this (every hour o'clock):
+To make the change automatically you may add it to your crontab, in linux or mac something like this (every hour o'clock):
 ```
 0 * * * * /path/to/updatesgwithmyip.sh sg-12345678
 ```
