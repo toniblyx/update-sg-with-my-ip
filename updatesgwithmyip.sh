@@ -7,7 +7,7 @@
 # ./updatesgwithmyip.sh <sg-id>
 # ie: ./updatesgwithmyip.sh sg-12345678
 
-MY_PUBLIC_IP=$(curl -s ifconfig.co)
+MY_PUBLIC_IP=$(curl -s ifconfig.co || echo "Failed")
 
 aws ec2 authorize-security-group-ingress --group-id $1 \
 --protocol tcp --port 22 --cidr $MY_PUBLIC_IP/32
