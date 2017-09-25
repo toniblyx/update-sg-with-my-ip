@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Script to that gets my current public IP and updates 
+# Script that gets current public IP and updates
 # a given security group to allow SSH access
-# 
+#
 # Usage (simple mode):
 # ./updatesgwithmyip.sh <sg-id>
 # ie: ./updatesgwithmyip.sh sg-12345678
@@ -27,7 +27,7 @@
 #                    --region         <AWS region>
 #                    --dry-run
 
-# <sg-id> is mandatory and is the security group you wish to alter 
+# <sg-id> is mandatory and is the security group you wish to alter
 #   e.g. sg-12345678
 # All other options are optional
 # <port-number>
@@ -45,6 +45,7 @@
 #   default: unset (aws CLI uses its default)
 # <AWS region>
 #   AWS region, if not using default
+#   default: script assumes region us-east-1
 #   default: unset (aws CLI uses its default)
 
 # For EC2-Classic would be with --group-name instead, something like:
@@ -63,6 +64,7 @@ declare -r REALLY_RUN=1
 declare -r DEFAULT_PORT='22'
 declare -r DEFAULT_FAMILY='tcp'
 declare -r DEFAULT_IPD_SERVER='ifconfig.co'
+declare -r DEFAULT_REGION='us-east-1'
 declare -r DEFAULT_DRY_RUN=${REALLY_RUN}
 
 declare security_group port family ipd_server profile region dry_run other_args my_public_ip
@@ -131,6 +133,7 @@ fi
 : ${family:=${DEFAULT_FAMILY}}
 : ${ipd_server:=${DEFAULT_IPD_SERVER}}
 : ${dry_run:=${DEFAULT_DRY_RUN}}
+: ${region:=${DEFAULT_REGION}}
 
 get_ip () {
   my_public_ip=$(curl -s ${ipd_server})
@@ -148,6 +151,30 @@ build_other_args () {
   [ ! -z "${region}" ] && other_args+=" --region ${region}"
 }
 
+remove_existing (){
+  aws ec2 describe-security-groups \
+  --group-id ${security_group} \
+  --output text \
+  --filters Name=ip-permission.from-port,Values=${port} \
+  --query 'SecurityGroups[*].IpPermissions[*].IpRanges' \
+  ${other_args} > ipcidrs.txt
+  sort ipcidrs.txt | uniq > ips.txt
+  for i in `cat ips.txt`;
+    do aws ec2 revoke-security-group-ingress \
+      --group-id ${security_group} \
+      --protocol ${family} \
+      --port ${port} \
+      --cidr $i \
+      ${other_args} >/dev/null 2>&1;
+    done
+  local retval=$?
+  if [ ${retval} != 0 ]
+  then
+    echo '[ERROR] Failed to delete existing security group rule' >&2
+    exit ${retval}
+  fi
+  rm -f ips.txt ipcidrs.txt
+}
 authorize () {
   aws ec2 authorize-security-group-ingress \
     --group-id ${security_group} \
@@ -172,11 +199,20 @@ sanity_check () {
 }
 
 run () {
+  echo "Verifying parameters..."
   sanity_check
+  echo "Getting current IP..."
   get_ip
   build_other_args
+  read -p "Remove existing rules (e.g. existing rules with different IPs)? y/n  " -n 1 -r
+  echo
+  if [[ $REPLY =~ ^[Yy]$ ]]
+  then
+      remove_existing
+  fi
+  echo "Adding new rule for port ${port} with IP ${my_public_ip}"
   authorize
+  echo "Finished."
 }
 
 [[ "${BASH_SOURCE[0]}" == "${0}" ]] && run $*
-
