@@ -135,15 +135,6 @@ fi
 : ${dry_run:=${DEFAULT_DRY_RUN}}
 : ${region:=${DEFAULT_REGION}}
 
-check_login (){
-  # Call AWS while authenticated to get the user identity
-  aws_identity=$(aws sts get-caller-identity 2>&1)
-  # Check that user is authenticated with OKTA
-  if [[ ${aws_identity} == *"expired"* ]]; then
-    java -jar oktaAWSCLI.jar
-  fi
-}
-
 get_ip () {
   my_public_ip=$(curl -s ${ipd_server})
   local retval=$?
@@ -208,8 +199,6 @@ sanity_check () {
 }
 
 run () {
-  echo "Verifying OKTA login..."
-  check_login
   echo "Verifying parameters..."
   sanity_check
   echo "Getting current IP..."
